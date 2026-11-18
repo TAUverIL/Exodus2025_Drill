@@ -28,7 +28,7 @@ BAUD = 115200
 LOOP_SLEEP_S = 0.15      # pause between request/response cycles
 HISTORY_LEN = 300        # points kept on the graphs
 
-# Must match the FAULT_* codes in drill_arm_teensy_usb_serial.ino
+# Must match the FAULT_* codes in firmware/firmware.ino
 FAULT_MESSAGES = {
     0: "None",
     1: "Top limit hit while moving up unexpectedly",
