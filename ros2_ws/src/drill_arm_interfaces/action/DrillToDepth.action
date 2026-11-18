@@ -1,0 +1,16 @@
+# Goal
+float32 depth_mm
+float32 speed_mm_s
+int32 drill_percent
+---
+# Result
+bool success
+string message
+float32 final_mm
+float32 final_force_g
+---
+# Feedback
+float32 current_mm
+float32 force_g
+bool moving
+int32 drill_percent

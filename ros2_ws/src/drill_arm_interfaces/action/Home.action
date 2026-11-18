@@ -1,0 +1,9 @@
+# Goal — nothing needed, just trigger homing
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string phase
+float32 current_mm
