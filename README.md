@@ -21,6 +21,21 @@ protocol.
  (Y axis)   (PWM)          (force)      (ground dist)
 ```
 
+## Where to work on what
+
+| Topic | Folder |
+|---|---|
+| Teensy firmware (motion, safety, sensors) | `firmware/` (open `firmware/firmware.ino` in the Arduino IDE) |
+| Bench GUI for the Mac | `firmware/mac_gui/` |
+| Isolated hardware tests (drill motor, load cell) | `firmware/drill_test/`, `firmware/hx711_test/` |
+| ROS 2 action definitions | `ros2_ws/src/drill_arm_interfaces/` |
+| ROS 2 bridge node on the Jetson | `ros2_ws/src/drill_arm_ros_bridge/` |
+| Electronics (KiCad) | `project/` |
+| Design notes | `docs/` |
+| Old sketches (reference only) | `legacy/` |
+
+Start every task on a new branch from `main` and merge back through a Pull Request.
+
 ## Hardware
 
 | Part | Role |
@@ -36,7 +51,7 @@ protocol.
 
 | Path | What it is |
 |---|---|
-| `drill_arm_teensy_usb_serial/` | **Main firmware** (`.ino`) + Mac GUI (`mac_gui/`) + isolated test sketches |
+| `firmware/` | **Main firmware** (`.ino`) + Mac GUI (`mac_gui/`) + isolated test sketches |
 | `ros2_ws/src/drill_arm_interfaces/` | ROS 2 action definitions (Home, MoveY, DrillToDepth) |
 | `ros2_ws/src/drill_arm_ros_bridge/` | ROS 2 bridge node + interactive CLI node |
 | `project/` | KiCad schematic / PCB |
@@ -82,7 +97,7 @@ Replies: `ACK …`, `ERR …`, `INFO …`, `STATUS …` — trivially parseable.
 **Mac GUI** (no ROS needed):
 ```bash
 pip3 install pyserial matplotlib
-python3 drill_arm_teensy_usb_serial/mac_gui/drill_arm_gui.py
+python3 firmware/mac_gui/drill_arm_gui.py
 ```
 Live position/force/drill graphs, all commands as buttons, fault decoding.
 
