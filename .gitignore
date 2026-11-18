@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# KiCad auto-history plugin (has its own nested .git) and lock files
+project/.history/
+*.lck
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude session config
+.claude/
+
+# ROS 2 build artifacts (if ever built locally)
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/

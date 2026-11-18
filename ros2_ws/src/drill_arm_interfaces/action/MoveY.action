@@ -1,0 +1,12 @@
+# Goal
+float32 target_mm
+float32 speed_mm_s
+---
+# Result
+bool success
+string message
+float32 final_mm
+---
+# Feedback
+float32 current_mm
+bool moving

@@ -1,0 +1,152 @@
+ROS 2 OVERVIEW — DRILL ARM
+==========================
+
+
+SYSTEM ARCHITECTURE  (how the pieces connect)
+----------------------------------------------
+- The Teensy 4.1 is pure firmware. It does not know what ROS is.
+  It just reads commands from the USB cable and sends back status text.
+
+- The Jetson Orin runs ROS 2. It is the "smart" side.
+  It connects to the Teensy over USB (/dev/ttyACM0, 115200 baud).
+
+- A ROS node on the Jetson (the serial bridge) acts as a translator:
+    Teensy text  -->  ROS topics/actions/services
+    ROS commands -->  Teensy text
+
+- The USB camera connects to the Jetson only.
+  The Teensy cannot handle camera data — not enough USB bandwidth or processing power.
+
+
+WHY NOT MICRO-ROS?
+------------------
+micro-ROS is a way to make the Teensy itself a ROS node — so it talks DDS
+directly without a bridge. It is powerful but adds a lot of complexity:
+requires a real-time OS (FreeRTOS), a micro-ROS agent on the Jetson,
+and library versions must match exactly.
+
+We chose the serial bridge instead because:
+- Firmware stays simple — plain Arduino, no RTOS
+- You can debug with just the Arduino Serial Monitor
+- The stepper timing ISR runs without interference
+- Works with any ROS 2 version
+- Easy to swap out or rewrite the bridge without touching Teensy firmware
+
+micro-ROS remains an option in the future once the system is stable.
+
+
+NODES  (programs running on the Jetson)
+----------------------------------------
+drill_arm_serial_bridge  — sits and listens to the USB cable.
+                           Translates Teensy text -> ROS, and ROS commands -> Teensy text.
+
+drill_arm_controller     — the "brain".
+                           Decides when to home, move, drill. Watches for faults.
+
+camera_node              — grabs pictures from the USB camera and puts them on the network.
+
+
+TOPICS  (live data streams — anyone can listen)
+------------------------------------------------
+/drill_arm/status        — full dashboard of the arm: position, speed, homed, fault, force, ToF. Updates constantly.
+/drill_arm/fault         — shouts a number when something goes wrong.
+/drill_arm/force         — current force on the load cells in grams.
+/drill_arm/tof_distance  — how far the arm is from the ground in meters.
+/camera/image_raw        — raw camera frames.
+/camera/image_compressed — same but smaller file size.
+
+
+ACTIONS  (commands that take time and report progress while running)
+---------------------------------------------------------------------
+/drill_arm/home          — "go find the top switch" — reports progress until homing is done.
+/drill_arm/move_y        — "go to position X" — reports current position while moving, finishes when arrived.
+/drill_arm/drill         — "spin the drill at X%" — runs until you cancel it.
+
+
+SERVICES  (instant one-shot commands, no waiting)
+--------------------------------------------------
+/drill_arm/stop          — stop moving.
+/drill_arm/estop         — emergency stop, cuts everything.
+/drill_arm/clear_fault   — reset an error.
+/drill_arm/tare          — zero the load cells.
+
+
+SAFETY PROTOCOLS  (what happens when things go wrong)
+------------------------------------------------------
+ERR FORCE_LIMIT      — load cell reads over 25 kg.
+                       ROS publishes the fault, cancels any active action, sends ESTOP.
+
+ERR TOF_CLEARANCE    — arm is moving down and the ToF sensor reads less than 50mm to the ground.
+                       ROS cancels the move. Arm stops before hitting.
+
+ERR GROUND_CONTACT   — arm is moving down and ToF reads 10mm or less. Surface reached.
+                       ROS stops the move and marks the drill action as complete.
+
+ERR LIM_TOF_CONFLICT — top limit switch is ON at the same time as ToF reads less than 50mm.
+                       Something is physically wrong. Full ESTOP immediately.
+
+ERR COMMS_TIMEOUT    — Teensy got no command for too long (5 min in testing, ~2s in production).
+                       The ROS bridge must send a STATUS heartbeat every ~1 second during motion.
+
+ERR BAD_COMMAND      — Teensy received a command it did not understand.
+                       ROS logs the error, sends CLEAR_FAULT, and retries.
+
+
+SERIAL PROTOCOL  (what goes over the USB cable)
+------------------------------------------------
+All messages are plain text, one line, ending with a newline character.
+
+Jetson --> Teensy commands:
+  HOME
+  MOVE Y=100 SPEED=2
+  MOVE_REL Y=-10 SPEED=2
+  DRILL PERCENT=50
+  STOP
+  ESTOP
+  STATUS
+  POS
+  CLEAR_FAULT
+  TARE
+
+Teensy --> Jetson replies:
+  READY DRILL_ARM_TEENSY_USB_SERIAL   (on power-up)
+  ACK HOME / ACK MOVE / ACK DRILL / ACK STOP / ACK ESTOP / ACK CLEAR_FAULT / ACK TARE
+  STATUS Y=0.000 TARGET=0.000 LIMIT_TOP=0 HOMED=1 MOVING=0 HOMING=0 SPEED=0.000
+         DRILL=0 LOAD_G=0.00 LOAD_READY=1 FORCE_G=0.00 FORCE_WARN=0
+         TOF_MM=850 TOF_VALID=1 FAULT=0 FAULT_ACTIVE=0
+  ERR <fault description>
+
+
+BOOT SEQUENCE  (how to start the system)
+-----------------------------------------
+1. Power on Teensy — it sends "READY DRILL_ARM_TEENSY_USB_SERIAL"
+2. Jetson bridge node connects to /dev/ttyACM0
+3. Bridge sends STATUS — check that FAULT_ACTIVE=0
+4. If FAULT_ACTIVE=1 — send CLEAR_FAULT first
+5. Call /drill_arm/home action — wait until HOMED=1
+6. Send TARE to zero the load cells
+7. System is ready — all actions and services available
+
+
+CAMERA  (USB camera on the Jetson)
+------------------------------------
+- Camera connects to the Jetson USB port only. Not the Teensy.
+- Use OpenCV or the ROS 2 usb_cam package to capture frames.
+- Publish compressed images to /camera/image_compressed to save bandwidth.
+- Camera is for sampling and inspection only — not real-time control.
+- Sync image timestamps with /drill_arm/status to know the arm position
+  at the exact moment a photo was taken.
+
+
+FAULT CODES
+-----------
+0  NONE
+1  TOP_LIMIT_WHILE_MOVING_UP
+2  NOT_HOMED
+3  COMMS_TIMEOUT
+4  BAD_COMMAND
+5  ESTOP
+6  FORCE_LIMIT
+7  HOMING_TIMEOUT
+8  TOF_CLEARANCE
+9  GROUND_CONTACT
